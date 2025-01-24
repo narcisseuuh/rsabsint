@@ -3,4 +3,8 @@ name = "rust-absint"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "rust-absint"
+path = "src/main.rs"
+
 [dependencies]
