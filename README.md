@@ -22,7 +22,7 @@ cargo test
 
 ## Conteneurisation
 
-Un [conteneur docker](Dockerfile) correspondant au projet a été écrit :
+Une [image docker](Dockerfile) correspondant au projet a été écrit :
 ```bash
 # construction de l'image docker
 docker build -t rust-absint .
