@@ -1,4 +1,4 @@
-# Rust-AbsInt : Analyseur statique par Interprétation Abstraite
+# RSAbsInt : Analyseur statique par Interprétation Abstraite
 
 Réalisation du projet du cours TAS du Master 2 STL (Sorbonne) de 2016-2017. L'objectif est de se familiariser avec la conception d'un analyseur statique par interprétation abstraite, en Rust (le sujet initial était proposé en OCaml, cf [la documentation](doc/sujet.pdf)).
 Le projet sera probablement étoffé au fur à mesure de mes apprentissages.
@@ -9,7 +9,7 @@ Le projet est écrit en utilisant [cargo](https://doc.rust-lang.org/cargo/) (rus
 ```bash
 cargo build
 ```
-Puis, pour exécuter le programme, on retrouve le binaire dans `target/debug/rust-absint`, mais il est aussi possible d'utiliser cargo à nouveau :
+Puis, pour exécuter le programme, on retrouve le binaire dans `target/debug/rsabsint`, mais il est aussi possible d'utiliser cargo à nouveau :
 ```bash
 cargo run -- [ARGS] fichier.c
 ```
@@ -25,10 +25,10 @@ cargo test
 Une [image docker](Dockerfile) correspondant au projet a été écrit :
 ```bash
 # construction de l'image docker
-docker build -t rust-absint .
+docker build -t rsabsint .
 
 # lancement d'un shell dans le container
-sudo docker run -it --entrypoint /bin/sh rust-absint
+sudo docker run -it --entrypoint /bin/sh rsabsint
 ```
 au sein du conteneur est copiée la batterie de tests.
 
@@ -48,62 +48,62 @@ au sein du conteneur est copiée la batterie de tests.
 
 ## Grammaire BNF du langage analysé
 
-Voici la grammaire BNF du langage qui est analysé par `rust-absint` :
+Voici la grammaire BNF du langage qui est analysé par `rsabsint` :
 ```
-<file> ::= <stat>* TOK_EOF
+<file> ::= <stat>* EOF
 ;
 <stat> ::= <block>
-         | TOK_id TOK_EQUAL <int_expr> TOK_SEMICOLON
-         | TOK_IF TOK_LPAREN <bool_expr> TOK_RPAREN <stat>
-         | TOK_IF TOK_LPAREN <bool_expr> TOK_RPAREN <stat> TOK_ELSE <stat>
-         | TOK_WHILE TOK_LPAREN <bool_expr> TOK_RPAREN <stat>
-         | TOK_ASSERT TOK_LPAREN <bool_expr> TOK_RPAREN TOK_SEMICOLON
-         | TOK_PRINT TOK_LPAREN <separated_list(TOK_COMMA, TOK_id)> TOK_RPAREN TOK_SEMICOLON
-         | TOK_HALT TOK_SEMICOLON
+         | id EQUAL <int_expr> SEMICOLON
+         | IF LPAREN <bool_expr> RPAREN <stat>
+         | IF LPAREN <bool_expr> RPAREN <stat> ELSE <stat>
+         | WHILE LPAREN <bool_expr> RPAREN <stat>
+         | ASSERT LPAREN <bool_expr> RPAREN SEMICOLON
+         | PRINT LPAREN <separated_list(COMMA, id)> RPAREN SEMICOLON
+         | HALT SEMICOLON
 ;
-<block> ::= TOK_LCURLY <decl>* <stat>* TOK_RCURLY
+<block> ::= LCURLY <decl>* <stat>* RCURLY
 ;
-<decl> ::= <typ> TOK_id TOK_SEMICOLON
+<decl> ::= <typ> id SEMICOLON
 ;
-<typ> ::= TOK_INT
+<typ> ::= INT_T
 ;
-<int_expr> ::= TOK_LPAREN <int_expr> TOK_RPAREN
-             | TOK_int
-             | TOK_id
+<int_expr> ::= LPAREN <int_expr> RPAREN
+             | INT
+             | IDENT
              | <int_unary_op> <int_expr>
              | <int_expr> <int_binary_op> <int_expr>
-             | TOK_RAND TOK_LPAREN <sign_int_literal> TOK_COMMA <sign_int_literal> TOK_RPAREN
+             | RAND LPAREN <sign_int_literal> COMMA <sign_int_literal> RPAREN
 ;
-<sign_int_literal> ::= TOK_int
-                     | TOK_PLUS TOK_int
-                     | TOK_MINUS TOK_int
+<sign_int_literal> ::= INT
+                     | PLUS INT
+                     | MINUS INT
 ;
-<int_unary_op> ::= TOK_PLUS
-                 | TOK_MINUS
+<int_unary_op> ::= PLUS
+                 | MINUS
 ;
-<int_binary_op> ::= TOK_TIMES
-                  | TOK_DIV
-                  | TOK_PLUS
-                  | TOK_MINUS
-                  | TOK_MODULO
+<int_binary_op> ::= TIMES
+                  | DIV
+                  | PLUS
+                  | MINUS
+                  | MODULO
 ;
-<bool_expr> ::= TOK_LPAREN <bool_expr> TOK_RPAREN
-              | TOK_TRUE
-              | TOK_FALSE
+<bool_expr> ::= LPAREN <bool_expr> RPAREN
+              | TRUEE
+              | FALSEE
               | <bool_unary_op> <bool_expr>
               | <bool_expr> <bool_binary_op> <bool_expr>
               | <int_expr> <compare_op> <int_expr>
 ;
-<bool_unary_op> ::= TOK_EXCLAIM
+<bool_unary_op> ::= NOT
 ;
-<bool_binary_op> ::= TOK_AND_AND
-                   | TOK_BAR_BAR
+<bool_binary_op> ::= AND
+                   | OR
 ;
-<compare_op> ::= TOK_LESS
-               | TOK_GREATER
-               | TOK_LESS_EQUAL
-               | TOK_GREATER_EQUAL
-               | TOK_EQUAL_EQUAL
-               | TOK_NOT_EQUAL
+<compare_op> ::= LESS
+               | GREATER
+               | LESS EQUAL
+               | GREATER EQUAL
+               | EQUAL EQUAL
+               | NOT EQUAL
 ;
 ```

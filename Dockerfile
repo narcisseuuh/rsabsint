@@ -14,7 +14,7 @@ FROM debian:bookworm-slim
 
 WORKDIR /absint
 
-COPY --from=builder /absint/target/release/rust-absint /absint/
+COPY --from=builder /absint/target/release/rsabsint /absint/
 COPY --from=builder /absint/test /absint/test/
 
-ENTRYPOINT [ "/absint/rust-absint" ]
+ENTRYPOINT [ "/absint/rsabsint" ]
