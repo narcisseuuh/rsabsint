@@ -1,6 +1,7 @@
+use lrlex::DefaultLexerTypes;
 use lrpar::{NonStreamingLexer, Span};
 
-use crate::{error::U32lexerType, typing::*};
+use crate::typing::*;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -31,7 +32,7 @@ impl SymbolTable {
     pub fn insert_builder(
         &mut self,
         s: SymbolBuilder,
-        lexer: &dyn NonStreamingLexer<U32lexerType>,
+        lexer: &dyn NonStreamingLexer<DefaultLexerTypes>,
     ) -> Result<(), String> {
         let name = lexer.span_str(s.get_name());
         if self.table.contains_key(name) {
@@ -81,6 +82,7 @@ impl Symbol {
     }
 }
 
+#[derive(Clone)]
 pub struct SymbolBuilder {
     name: Span,
     binding: Option<i16>,
@@ -112,7 +114,7 @@ impl SymbolBuilder {
 
     pub fn build(
         self,
-        lexer: &dyn NonStreamingLexer<U32lexerType>,
+        lexer: &dyn NonStreamingLexer<DefaultLexerTypes>,
     ) -> Result<Symbol, String> {
         if let Some(binding) = self.binding {
             Ok(Symbol::Variable {

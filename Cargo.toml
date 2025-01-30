@@ -2,6 +2,7 @@
 name = "rsabsint"
 version = "0.1.0"
 edition = "2021"
+build="build.rs"
 
 [[bin]]
 doc = true
@@ -11,9 +12,9 @@ path = "src/main.rs"
 [build-dependencies]
 cfgrammar = "0.13"
 lrlex = "0.13.1"
-lrpar = "0.13.1"
+lrpar = { version = "0.13.8", features = ["_unstable_api"] }
 
 [dependencies]
 cfgrammar = "0.13"
 lrlex = "0.13.1"
-lrpar = "0.13.1"
+lrpar = { version = "0.13.8", features = ["_unstable_api"] }

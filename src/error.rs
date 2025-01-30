@@ -1,14 +1,7 @@
-use lrlex::{LRLexError, DefaultLexeme};
-use lrpar::{NonStreamingLexer, Span, LexerTypes};
-
-#[derive(Debug, Clone)]
-pub struct U32lexerType;
-
-impl LexerTypes for U32lexerType {
-    type StorageT = u32;
-    type LexemeT = DefaultLexeme;
-    type LexErrorT = LRLexError;
-}
+use std::error::Error;
+use std::fmt;
+use lrlex::DefaultLexerTypes;
+use lrpar::{NonStreamingLexer, Span};
 
 #[derive(Debug, Clone)]
 pub struct SemanticError {
@@ -24,7 +17,7 @@ impl SemanticError {
         }
     }
 
-    pub fn display(&self, lexer: &dyn NonStreamingLexer<U32lexerType>) {
+    pub fn display(&self, lexer: &dyn NonStreamingLexer<DefaultLexerTypes<u32>>) {
         match self.span {
             Some(s) => {
                 let ((line, col), _) = lexer.line_col(s);
@@ -40,3 +33,11 @@ impl SemanticError {
         }
     }
 }
+
+impl fmt::Display for SemanticError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.msg)
+    }
+}
+
+impl Error for SemanticError {}

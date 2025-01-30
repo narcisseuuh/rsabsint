@@ -1,4 +1,6 @@
 use std::env;
+use rsabsint::frontend::file_parser::*;
+use rsabsint::ast::Program;
 
 fn help(binary_path : String) {
     println!("usage: {} [ARGS]* [file].c\n
@@ -63,6 +65,9 @@ fn main() {
             }
             i += 1;
         }
+        let program: Program =
+            parse_file(target_file.to_string()).unwrap();
+        println!("{:?}", program);
     }
     else {
         help(binary_path);

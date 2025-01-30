@@ -133,8 +133,8 @@ pub enum TNode {
     },
     If {
         cond: BoolExpr,
-        then: Vec<TNode>,
-        otherwise: Option<Vec<TNode>>,
+        then: Box<TNode>,
+        otherwise: Option<Box<TNode>>,
     },
     While {
         cond: BoolExpr,
@@ -165,4 +165,4 @@ impl TNode {
     }
 }
 
-type Program = Vec<TNode>;
+pub type Program = Vec<TNode>;

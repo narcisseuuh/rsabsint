@@ -1,5 +1,24 @@
 use crate::{ast::*, error::SemanticError};
-use lrpar::Span;
+use crate::symbol::*;
+use crate::typing::Type;
+use lrlex::DefaultLexerTypes;
+use lrpar::{NonStreamingLexer, Span};
+
+pub fn insert(
+    mut id : SymbolBuilder,
+    typ : Type,
+    sym_table: &mut SymbolTable,
+    lexer: &dyn NonStreamingLexer<DefaultLexerTypes>,
+) -> Result<(), SemanticError> {
+    id.dtype(typ.clone());
+    let span = id.get_name();
+
+    sym_table
+        .insert_builder(id, lexer)
+        .map_err(|msg| SemanticError::new(Some(span), &msg))?;
+
+    Ok(())
+}
 
 pub fn create_int_binop(
     op: IntBinaryOp,
@@ -79,8 +98,8 @@ pub fn create_while(
 
 pub fn create_if(
     cond: BoolExpr,
-    then: Vec<TNode>,
-    otherwise: Option<Vec<TNode>>
+    then: Box<TNode>,
+    otherwise: Option<Box<TNode>>
 ) -> Result<TNode, SemanticError> {
     Ok(TNode::If {
         cond,

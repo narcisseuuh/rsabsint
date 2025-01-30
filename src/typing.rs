@@ -1,4 +1,16 @@
 use std::fmt;
+use std::collections::HashMap;
+
+#[derive(Debug, Clone, Default)]
+pub struct TypeTable {
+    table: HashMap<String, Type>,
+}
+
+impl TypeTable {
+    pub fn get(&self, tname: &str) -> Option<&Type> {
+        self.table.get(tname)
+    }
+}
 
 // This ds is used to store information about types
 #[derive(Clone, PartialEq, Eq)]
