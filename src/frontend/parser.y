@@ -29,8 +29,8 @@
 %%
 // Statements
 PROG -> Result<Program, SemanticError>:
-      STMT PROG  { insert_vec($2, $1) }
-    | STMT       { Ok(vec![$1?]) }
+      /* empty */ { Ok(Vec::new()) }
+    | PROG STMT  { insert_vec($1, $2) }
     ;
 
 STMT -> Result<TNode, SemanticError>:
@@ -57,7 +57,7 @@ STMT -> Result<TNode, SemanticError>:
 
 STMT_LIST -> Result<Vec<TNode>, SemanticError>:
       /* empty */       { Ok(Vec::new()) }
-    | STMT STMT_LIST    { insert_vec($2, $1) }
+    | STMT_LIST STMT    { insert_vec($1, $2) }
     ;
 
 ID_LIST -> Result<Vec<Symbol>, SemanticError>:
@@ -71,15 +71,15 @@ ID_LIST -> Result<Vec<Symbol>, SemanticError>:
                 .clone();
             Ok(vec![symbol])
         }
-    | Id "," ID_LIST       
+    | ID_LIST "," Id       
         {
             let parser = &mut *p.borrow_mut();
-            let fname = $lexer.span_str($1?.span()).to_string();
+            let fname = $lexer.span_str($3?.span()).to_string();
             let symbol = parser.sym_table
                 .get(&fname)
                 .unwrap()
                 .clone();
-            insert_vec($3, Ok(symbol))
+            insert_vec($1, Ok(symbol))
         }
     ;
 
@@ -104,7 +104,7 @@ DECL -> Result<Symbol, SemanticError>:
 
 DECL_LIST -> Result<Vec<Symbol>, SemanticError>:
       /* empty */       { Ok(Vec::new()) }
-    | DECL DECL_LIST    { insert_vec($2, $1) }
+    | DECL_LIST DECL    { insert_vec($1, $2) }
     ;
 
 TYPE -> Result<Type, SemanticError>:
@@ -120,11 +120,9 @@ IE -> Result<IntExpr, SemanticError>:
     | IE "%" IE                  { create_int_binop(IntBinaryOp::Mod, $span, $1?, $3?) }
     | "-" IE                     { create_int_unop(IntUnaryOp::SubUnary, $span, $2?) }
     | "+" IE                     { create_int_unop(IntUnaryOp::AddUnary, $span, $2?) }
-    | "RAND" "(" Num "," Num ")" 
+    | "RAND" "(" IE "," IE ")" 
         {
-            let num1 = $lexer.span_str($3?.span()).to_string();
-            let num2 = $lexer.span_str($5?.span()).to_string();
-            Ok(IntExpr::Rand { span: $span, lower: num1, upper: num2 })
+            Ok(IntExpr::Rand { span: $span, lower: Box::new($3?), upper: Box::new($5?) })
         }
     | Num                        { Ok(IntExpr::Const { span: $span, cst: $lexer.span_str($1?.span()).to_string() }) }
     | Id                         

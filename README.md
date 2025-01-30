@@ -34,8 +34,8 @@ au sein du conteneur est copiée la batterie de tests.
 
 ## TODO
 
-- [ ] Parsing/Lexing du langage.
-- [ ] Pretty printing de l'arbre de syntaxe abstraite.
+- [x] Parsing/Lexing du langage.
+- [x] Pretty printing de l'arbre de syntaxe abstraite.
 - [ ] Interprète générique des programmes.
 - [ ] domaine concret (option `-concrete`).
 - [ ] domaine des constantes (option `-constant`).

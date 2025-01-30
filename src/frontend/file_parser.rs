@@ -5,7 +5,8 @@ use crate::{
     frontend::parser_state::ParserState,
     ast::Program
 };
-use std::{cell::RefCell, env, error::Error, ffi::OsStr, fs::File, io::Read, path::PathBuf};
+use std::{cell::RefCell, env, error::Error, ffi::OsStr, 
+    fs::File, io::Read, path::PathBuf};
 use std::fmt;
 
 #[derive(Debug)]
@@ -41,7 +42,12 @@ fn get_input(path: &PathBuf) -> Result<String, Box<dyn Error>> {
     Ok(s)
 }
 
-pub fn parse_file(filename: String) -> Result<Program, Box<(dyn std::error::Error + 'static)>> {
+/// Function taking a filename as argument and returning the AST corresponding to the program
+/// in case no error is raised at lexing/parsing time, the error corresponding to the parse 
+/// failure otherwise.
+pub fn parse_file(
+    filename: String
+) -> Result<Program, Box<(dyn std::error::Error + 'static)>> {
     let input_file = PathBuf::from(filename);
 
     match input_file.extension().and_then(OsStr::to_str) {
@@ -70,7 +76,9 @@ pub fn parse_file(filename: String) -> Result<Program, Box<(dyn std::error::Erro
         match res {
             Some(Ok(program)) => Ok(program),
             Some(Err(e)) => Err(Box::new(e)),
-            None => Err(Box::new(SemanticError::new(None, "Unable to parse file."))),
+            None => Err(
+                Box::new(SemanticError::new(None, "Unable to parse file."))
+            ),
         };
 
     Ok(ret_val?)

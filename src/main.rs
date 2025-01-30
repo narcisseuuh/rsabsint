@@ -1,6 +1,17 @@
+//! # rsabsint
+//!
+//! Library made for static analysis by abstract interpretation of a small set of the C language.
+//! Further syntax support and domains will be implemented : this is my playground for learning.
+//! Usage :
+//! ```bash
+//! ./rsabsint [ARGS]* file.c
+//! cargo run [ARGS]* file.c
+//! ```
+//! 1 and only 1 C file should be precised, and arguments are chosen among :
+//! `-concrete`, `-constant`, `-interval`, `-disjonctive`, `-unroll n`, `-delay n` (n : u32)
 use std::env;
 use rsabsint::frontend::file_parser::*;
-use rsabsint::ast::Program;
+use rsabsint::ast::{display_program, Program};
 
 fn help(binary_path : String) {
     println!("usage: {} [ARGS]* [file].c\n
@@ -67,7 +78,7 @@ fn main() {
         }
         let program: Program =
             parse_file(target_file.to_string()).unwrap();
-        println!("{:?}", program);
+        display_program(program);
     }
     else {
         help(binary_path);

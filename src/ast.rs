@@ -1,6 +1,7 @@
 use lrpar::Span;
 use crate::symbol::*;
 
+/// binary operands for the type int.
 #[derive(Debug, Clone, Copy)]
 pub enum IntBinaryOp {
     Add,
@@ -10,12 +11,14 @@ pub enum IntBinaryOp {
     Mod,
 }
 
+/// unary operands for the type int.
 #[derive(Debug, Clone, Copy)]
 pub enum IntUnaryOp {
     AddUnary,
     SubUnary,
 }
 
+/// comparison operands.
 #[derive(Debug, Clone, Copy)]
 pub enum CompareOp {
     NE,
@@ -26,23 +29,20 @@ pub enum CompareOp {
     EQ,
 }
 
+/// binary operands for the type bool.
 #[derive(Debug, Clone, Copy)]
 pub enum BoolBinaryOp {
     And,
     Or,
 }
 
+/// unary operands for the type bool.
 #[derive(Debug, Clone, Copy)]
 pub enum BoolUnaryOp {
     Not,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum RefType {
-    RHS,
-    LHS,
-}
-
+/// nodes inside an integer expression.
 #[derive(Debug, Clone)]
 pub enum IntExpr {
     Unary {
@@ -66,12 +66,13 @@ pub enum IntExpr {
     },
     Rand {
         span: Span,
-        lower: String,
-        upper: String,
+        lower: Box<IntExpr>,
+        upper: Box<IntExpr>,
     }
 }
 
 impl IntExpr {
+    /// getter for the span of an integer expression.
     pub fn get_span(&self) -> &Span {
         match self {
             IntExpr::Unary { span, .. }
@@ -84,6 +85,7 @@ impl IntExpr {
     }
 }
 
+/// nodes inside a boolean expression.
 #[derive(Debug, Clone)]
 pub enum BoolExpr {
     Unary {
@@ -110,6 +112,7 @@ pub enum BoolExpr {
 }
 
 impl BoolExpr {
+    /// getter for the span of a boolean expression.
     pub fn get_span(&self) -> &Span {
         match self {
             BoolExpr::Unary { span, .. }
@@ -121,6 +124,9 @@ impl BoolExpr {
     }
 }
 
+/// enumeration type for all the nodes of the
+/// abstract syntax tree for the subset of C language
+/// studied.
 #[derive(Debug, Clone)]
 pub enum TNode {
     Block {
@@ -150,6 +156,7 @@ pub enum TNode {
 }
 
 impl TNode {
+    /// getter for the span of an AST node.
     pub fn get_span(&self) -> Option<&Span> {
         match self {
             TNode::Assign { lhs: _, rhs }
@@ -165,4 +172,95 @@ impl TNode {
     }
 }
 
+/// type for Programs analyzed by rsabsint.
 pub type Program = Vec<TNode>;
+
+fn display_symbol(symbol : Symbol, indent: usize) {
+    let indentation = " ".repeat(indent);
+    match symbol {
+        Symbol::Variable { name, dtype }
+            => println!("{}{:?} {};", indentation, dtype, name),
+    }
+}
+
+fn format_intexpr(expr: &IntExpr) -> String {
+    match expr {
+        IntExpr::Unary { op, exp, .. }
+            => format!("{:?}({})", op, format_intexpr(exp)),
+        IntExpr::Binary { op, lhs, rhs, .. }
+            => format!("({} {:?} {})", format_intexpr(lhs), op, format_intexpr(rhs)),
+        IntExpr::Ident { var, .. }
+            => format!("{}", var.get_name()),
+        IntExpr::Const { cst, .. }
+            => format!("{}", cst),
+        IntExpr::Rand { lower, upper, .. }
+            => format!("rand({}, {})", format_intexpr(lower), format_intexpr(upper)),
+    }
+}
+
+fn format_boolexpr(expr: &BoolExpr) -> String {
+    match expr {
+        BoolExpr::Unary { op, exp, .. }
+            => format!("{:?}({})", op, format_boolexpr(exp)),
+        BoolExpr::Binary { op, lhs, rhs, .. }
+            => format!("({} {:?} {})", format_boolexpr(lhs), op, format_boolexpr(rhs)),
+        BoolExpr::Compare { op, lhs, rhs, .. }
+            => format!("({} {:?} {})", format_intexpr(lhs), op, format_intexpr(rhs)),
+        BoolExpr::Const { cst, .. }
+            => format!("{}", cst),
+    }
+}
+
+/// Pretty-prints the program taken as argument.
+pub fn display_program(program : Program)
+{
+    fn display_tnode(node: &TNode, indent: usize) {
+        let indentation = " ".repeat(indent);
+        match node {
+            TNode::Block { decl, stmt } => {
+                println!("{}{{", indentation);
+                for d in decl {
+                    display_symbol(d.clone(), indent + 4);
+                }
+                for s in stmt {
+                    display_tnode(s, indent + 4);
+                }
+                println!("{}}}", indentation);
+            }
+            TNode::Assign { lhs, rhs } => {
+                println!("{}{:?} = {:?};", indentation, lhs.get_name(), format_intexpr(rhs));
+            }
+            TNode::If { cond, then, otherwise } => {
+                println!("{}if ({:?})", indentation, format_boolexpr(cond));
+                display_tnode(then, indent + 4);
+                if let Some(else_node) = otherwise {
+                    println!("{}else", indentation);
+                    display_tnode(else_node, indent + 4);
+                }
+            }
+            TNode::While { cond, body } => {
+                println!("{}while ({:?})", indentation, format_boolexpr(cond));
+                display_tnode(body, indent + 4);
+            }
+            TNode::Halt => {
+                println!("{}halt;", indentation);
+            }
+            TNode::Assert { cond } => {
+                println!("{}assert({:?});", indentation, format_boolexpr(cond));
+            }
+            TNode::Print { vars } => {
+                let var_names = 
+                    vars
+                    .iter()
+                    .map(|var| var.get_name())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                println!("{}print({:?});", indentation, var_names);
+            }
+        }
+    }
+
+    for node in program {
+        display_tnode(&node, 0);
+    }
+}

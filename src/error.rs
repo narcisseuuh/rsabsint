@@ -3,6 +3,7 @@ use std::fmt;
 use lrlex::DefaultLexerTypes;
 use lrpar::{NonStreamingLexer, Span};
 
+/// Used to denote semantic errors at parsing phase.
 #[derive(Debug, Clone)]
 pub struct SemanticError {
     span: Option<Span>,

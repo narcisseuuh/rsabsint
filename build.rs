@@ -2,7 +2,9 @@ use cfgrammar::yacc::YaccKind;
 use lrlex::{CTLexerBuilder, DefaultLexerTypes};
 use lrpar::{unstable_api::UnstableApi, CTParser, CTParserBuilder};
 
-// the if let pattern is shown as irrefutable, even if it is not...
+/// function building the .rs files corresponding to the parser/lexer.
+/// it is precised in `Cargo.toml` that it should be called before building.
+/// the if let pattern is shown as irrefutable, even if it is not...
 #[allow(irrefutable_let_patterns)]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let parser : CTParser =

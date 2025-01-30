@@ -1,6 +1,8 @@
 use std::fmt;
 use std::collections::HashMap;
 
+/// Public structure containing the hashtable for all types of
+/// the program's symbols.
 #[derive(Debug, Clone, Default)]
 pub struct TypeTable {
     table: HashMap<String, Type>,
@@ -12,7 +14,7 @@ impl TypeTable {
     }
 }
 
-// This ds is used to store information about types
+/// Public enumeration used to store information about types.
 #[derive(Clone, PartialEq, Eq)]
 pub enum Type {
     Int,
@@ -28,6 +30,7 @@ impl fmt::Debug for Type {
     }
 }
 
+/// Builder for user made custom types.
 #[derive(Default, Debug, Clone)]
 pub struct TypeBuilder {
     dtype: Option<Type>,

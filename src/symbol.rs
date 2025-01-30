@@ -4,21 +4,8 @@ use lrpar::{NonStreamingLexer, Span};
 use crate::typing::*;
 use std::collections::HashMap;
 
-#[derive(Debug)]
-pub struct LabelGenerator {
-    counter: u16,
-}
-impl LabelGenerator {
-    pub fn default() -> Self {
-        Self { counter: 1 }
-    }
-    pub fn get(&mut self) -> u16 {
-        let label = self.counter;
-        self.counter += 1;
-        label
-    }
-}
-
+/// Symbol table, containing a hashmap mapping String names
+/// to Symbols.
 #[derive(Debug, Clone, Default)]
 pub struct SymbolTable {
     table: HashMap<String, Symbol>,
@@ -52,7 +39,8 @@ impl SymbolTable {
     }
 }
 
-// This stored data about each symbol
+/// Enumeration storing data about all the symbols,
+/// currently, only variables are supported.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Symbol {
     Variable {
@@ -75,6 +63,7 @@ impl Symbol {
     }
 }
 
+/// Structure to build Symbols.
 #[derive(Clone)]
 pub struct SymbolBuilder {
     name: Span,
