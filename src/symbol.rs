@@ -57,7 +57,6 @@ impl SymbolTable {
 pub enum Symbol {
     Variable {
         name: String,
-        binding: i16,
         dtype: Type,
     },
 }
@@ -74,18 +73,11 @@ impl Symbol {
             Self::Variable { dtype, .. } => dtype,
         }
     }
-
-    pub fn get_binding(&self) -> Result<&i16, String> {
-        match self {
-            Self::Variable { binding, .. } => Ok(binding),
-        }
-    }
 }
 
 #[derive(Clone)]
 pub struct SymbolBuilder {
     name: Span,
-    binding: Option<i16>,
     dtype: TypeBuilder,
 }
 
@@ -93,7 +85,6 @@ impl SymbolBuilder {
     pub fn new(name: Span) -> SymbolBuilder {
         SymbolBuilder {
             name,
-            binding: None,
             dtype: TypeBuilder::default(),
         }
     }
@@ -107,23 +98,13 @@ impl SymbolBuilder {
         self
     }
 
-    pub fn binding(&mut self, binding: i16) -> &mut SymbolBuilder {
-        self.binding = Some(binding);
-        self
-    }
-
     pub fn build(
         self,
         lexer: &dyn NonStreamingLexer<DefaultLexerTypes>,
     ) -> Result<Symbol, String> {
-        if let Some(binding) = self.binding {
-            Ok(Symbol::Variable {
-                name: lexer.span_str(self.name).to_string(),
-                binding: binding as i16,
-                dtype: self.dtype.build()?,
-            })
-        } else {
-            Err(format!("Couldn't create symbol from builder"))
-        }
+        Ok(Symbol::Variable {
+            name: lexer.span_str(self.name).to_string(),
+            dtype: self.dtype.build()?,
+        })
     }
 }

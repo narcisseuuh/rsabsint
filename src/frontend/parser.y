@@ -56,7 +56,7 @@ STMT -> Result<TNode, SemanticError>:
     ;
 
 STMT_LIST -> Result<Vec<TNode>, SemanticError>:
-      STMT              { Ok(vec![$1?]) }
+      /* empty */       { Ok(Vec::new()) }
     | STMT STMT_LIST    { insert_vec($2, $1) }
     ;
 
@@ -103,7 +103,7 @@ DECL -> Result<Symbol, SemanticError>:
     ;
 
 DECL_LIST -> Result<Vec<Symbol>, SemanticError>:
-      DECL              { Ok(vec![$1?]) }
+      /* empty */       { Ok(Vec::new()) }
     | DECL DECL_LIST    { insert_vec($2, $1) }
     ;
 
