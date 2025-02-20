@@ -1,5 +1,3 @@
-use std::fmt::write;
-
 /*
  * author : Narcisse.
  * This source code is licensed under the MIT license found in the
@@ -8,11 +6,14 @@ use std::fmt::write;
 use crate::domains::domain::AbstractDomain;
 use crate::ast::*;
 
+/// types of errors the analysis can raise : it informally represents the properties of
+/// interest we want to study on the analysis.
 #[derive(Debug)]
 pub enum AnalysisError {
     DeadCode,
     FailedAssert,
     UnknownVariable,
+    IllegalOperation,
 }
 
 impl std::fmt::Display for AnalysisError {
@@ -21,12 +22,14 @@ impl std::fmt::Display for AnalysisError {
             Self::DeadCode => { write!(f, "DeadCode") },
             Self::FailedAssert => { write!(f, "FailedAssert") },
             Self::UnknownVariable => { write!(f, "UnknownVariable") }
+            Self::IllegalOperation => { write!(f, "IllegalOperation") }
         }
     }
 }
 
 impl std::error::Error for AnalysisError {}
 
+/// structure for the results of the analysis we want to pretty-print.
 #[derive(Clone)]
 pub struct AnalysisResults {
     msg : String,
@@ -34,6 +37,7 @@ pub struct AnalysisResults {
 }
 
 impl AnalysisResults {
+    /// constructor for an Analysis Result.
     pub fn new(msg : String, node : TNode) -> Self {
         AnalysisResults {
             msg,
@@ -41,12 +45,14 @@ impl AnalysisResults {
         }
     }
 
+    /// pretty printing the analysis result.
     pub fn show(&mut self) {
         println!("{} in statement :", self.msg);
         display_tnode(&self.node, 0);
     }
 }
 
+/// function implementing a basic widening to attain a fixpoint.
 fn fixpoint<D : AbstractDomain, T : FnMut(D, BoolExpr) -> Result<D, AnalysisError>>
 (mut f : T, x : &D, cond : BoolExpr) -> Result<D, AnalysisError> {
     let fx = f(x.clone(), cond.clone())?;
@@ -54,11 +60,12 @@ fn fixpoint<D : AbstractDomain, T : FnMut(D, BoolExpr) -> Result<D, AnalysisErro
         Ok(fx)
     }
     else {
-        // to change...xswdq
         fixpoint(f, &fx.join(x.clone()), cond)
     }
 }
 
+/// helper function to interpret boolean expressions and prune the parts of the domain
+/// that are not satisfying the condition.
 fn eval_boolexpr<D : AbstractDomain>(mut ctx : D, be : BoolExpr, should_satisfy : bool) -> D {
     match be {
         BoolExpr::Unary { span : _, op, exp } => {
@@ -88,6 +95,7 @@ fn eval_boolexpr<D : AbstractDomain>(mut ctx : D, be : BoolExpr, should_satisfy 
     }
 }
 
+/// structure for the analyzer.
 pub struct MonotonicFixpointIterator<D : AbstractDomain> {
     base : D,
     next_nodes : Vec<TNode>,
@@ -96,6 +104,8 @@ pub struct MonotonicFixpointIterator<D : AbstractDomain> {
 
 impl<D> MonotonicFixpointIterator<D>
 where D : AbstractDomain {
+    /// constructor for a new analyzer : it should precise an unrolling bound 
+    /// and the program ast.
     pub fn new(next_nodes : Program, unroll : u32) -> Self {
         Self {
             base : D::bottom(),
@@ -104,14 +114,15 @@ where D : AbstractDomain {
         }
     }
 
+    /// inner function to pretty print the results of the analysis.
     fn show_results(&mut self, msgs : Vec<AnalysisResults>) -> () {
         for msg in msgs {
             msg.clone().show();
         }
     }
 
+    /// function to evaluate a statement according to a context `ctx`.
     fn eval_stmt(&mut self, stmt : TNode, ctx : D) -> Result<D, AnalysisError> {
-        // todo : take into account scope
         match stmt {
             TNode::Assert { cond } => {
                 let res = eval_boolexpr(ctx.clone(), cond, true);
@@ -134,11 +145,10 @@ where D : AbstractDomain {
                 self.eval_stmt_list(stmt, new_ctx)
             },
             TNode::Halt => {
-                // todo : change this to raise an error if dead code after halt.
+                // todo : potentially warn dead code after halt
                 Ok(ctx.clone())
             },
             TNode::If { cond, then, otherwise } => {
-                // todo : modify to analyze the body of the then and else branches
                 let then_domain = eval_boolexpr(ctx.clone(), cond.clone(), true);
                 if let Some(otherwise) = otherwise {
                     let else_domain = eval_boolexpr(ctx.clone(), cond.clone(), false);
@@ -164,7 +174,6 @@ where D : AbstractDomain {
                 Ok(ctx.clone())
             },
             TNode::While { cond, body } => {
-                // todo : implement loop unrolling and widening for fixpoint in while loop.
                 let mut in_loop = eval_boolexpr(ctx.clone(),cond.clone(), true);
                 for _ in 1..self.unroll {
                     in_loop = D::join(
@@ -186,6 +195,8 @@ where D : AbstractDomain {
         }
     }
 
+    /// helper function for the evaluation of a statement vector.
+    /// It basically is a fold using `eval_stmt`.
     fn eval_stmt_list(&mut self, stmt_list : Vec<TNode>, ctx : D) -> Result<D, AnalysisError> {
         self.base = ctx;
         for stmt in stmt_list {
@@ -197,6 +208,7 @@ where D : AbstractDomain {
         Ok(self.base.clone())
     }
 
+    /// main function of the analyzer : evaluating the program and showing the associated results.
     pub fn eval_prog(&mut self) -> Result<(), AnalysisError> {
         let mut res : Vec<AnalysisResults> = Vec::new();
         for stmt in self.next_nodes.clone() {
@@ -206,6 +218,7 @@ where D : AbstractDomain {
                     e.to_string(),
                     stmt,
                 ));
+                // in that case, we leave self.base as it was to keep the analysis
             }
             else {
                 self.base = curr_res?;
