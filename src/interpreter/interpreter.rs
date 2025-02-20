@@ -1,3 +1,5 @@
+use std::fmt::write;
+
 /*
  * author : Narcisse.
  * This source code is licensed under the MIT license found in the
@@ -10,6 +12,7 @@ use crate::ast::*;
 pub enum AnalysisError {
     DeadCode,
     FailedAssert,
+    UnknownVariable,
 }
 
 impl std::fmt::Display for AnalysisError {
@@ -17,6 +20,7 @@ impl std::fmt::Display for AnalysisError {
         match *self {
             Self::DeadCode => { write!(f, "DeadCode") },
             Self::FailedAssert => { write!(f, "FailedAssert") },
+            Self::UnknownVariable => { write!(f, "UnknownVariable") }
         }
     }
 }
@@ -119,7 +123,7 @@ where D : AbstractDomain {
                 }
             },
             TNode::Assign { lhs, rhs } => {
-                Ok(self.base.assign(lhs, rhs))
+                self.base.assign(lhs, rhs)
             },  
             TNode::Block { decl, stmt } => {
                 // todo : modify to take into account the scope

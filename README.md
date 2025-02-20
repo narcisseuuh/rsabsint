@@ -36,7 +36,7 @@ au sein du conteneur est copiée la batterie de tests.
 
 - [x] Parsing/Lexing du langage.
 - [x] Pretty printing de l'arbre de syntaxe abstraite.
-- [ ] Interprète générique des programmes.
+- [x] Interprète générique des programmes.
 - [ ] domaine concret (option `-concrete`).
 - [ ] domaine des constantes (option `-constant`).
 - [ ] domaine des intervalles (option `-interval`).

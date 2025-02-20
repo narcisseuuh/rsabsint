@@ -7,6 +7,7 @@
 /// You need to precise top, bottom, and basic operators
 /// in order for the interpreter to manipulate it.
 use crate::ast::*;
+use crate::interpreter::interpreter::AnalysisError;
 use crate::symbol::*;
 
 pub trait AbstractDomain : Clone + Eq {
@@ -54,7 +55,7 @@ pub trait AbstractDomain : Clone + Eq {
     /// helper function to compare expressions inside a domain
     fn compare(&mut self, e1 : IntExpr, cmp : CompareOp, e2 : IntExpr) -> Self;
     /// helper function to represent the assignment
-    fn assign(&mut self, v : Symbol, e : IntExpr) -> Self;
+    fn assign(&mut self, v : Symbol, e : IntExpr) -> Result<Self, AnalysisError>;
     /// helper function to add variable from scope
     fn add_variable(&mut self, v : Symbol) -> Self;
     /// helper function to remove variable from scope
