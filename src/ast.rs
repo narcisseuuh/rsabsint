@@ -1,3 +1,8 @@
+/*
+ * author : Narcisse.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 use lrpar::Span;
 use crate::symbol::*;
 
@@ -211,55 +216,56 @@ fn format_boolexpr(expr: &BoolExpr) -> String {
     }
 }
 
+/// Pretty-prints a statement.
+pub fn display_tnode(node: &TNode, indent: usize) {
+    let indentation = " ".repeat(indent);
+    match node {
+        TNode::Block { decl, stmt } => {
+            println!("{}{{", indentation);
+            for d in decl {
+                display_symbol(d.clone(), indent + 4);
+            }
+            for s in stmt {
+                display_tnode(s, indent + 4);
+            }
+            println!("{}}}", indentation);
+        }
+        TNode::Assign { lhs, rhs } => {
+            println!("{}{} = {};", indentation, lhs.get_name(), format_intexpr(rhs));
+        }
+        TNode::If { cond, then, otherwise } => {
+            println!("{}if ({})", indentation, format_boolexpr(cond));
+            display_tnode(then, indent + 4);
+            if let Some(else_node) = otherwise {
+                println!("{}else", indentation);
+                display_tnode(else_node, indent + 4);
+            }
+        }
+        TNode::While { cond, body } => {
+            println!("{}while ({})", indentation, format_boolexpr(cond));
+            display_tnode(body, indent + 4);
+        }
+        TNode::Halt => {
+            println!("{}halt;", indentation);
+        }
+        TNode::Assert { cond } => {
+            println!("{}assert({});", indentation, format_boolexpr(cond));
+        }
+        TNode::Print { vars } => {
+            let var_names = 
+                vars
+                .iter()
+                .map(|var| var.get_name())
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!("{}print({});", indentation, var_names);
+        }
+    }
+}
+
 /// Pretty-prints the program taken as argument.
 pub fn display_program(program : Program)
 {
-    fn display_tnode(node: &TNode, indent: usize) {
-        let indentation = " ".repeat(indent);
-        match node {
-            TNode::Block { decl, stmt } => {
-                println!("{}{{", indentation);
-                for d in decl {
-                    display_symbol(d.clone(), indent + 4);
-                }
-                for s in stmt {
-                    display_tnode(s, indent + 4);
-                }
-                println!("{}}}", indentation);
-            }
-            TNode::Assign { lhs, rhs } => {
-                println!("{}{:?} = {:?};", indentation, lhs.get_name(), format_intexpr(rhs));
-            }
-            TNode::If { cond, then, otherwise } => {
-                println!("{}if ({:?})", indentation, format_boolexpr(cond));
-                display_tnode(then, indent + 4);
-                if let Some(else_node) = otherwise {
-                    println!("{}else", indentation);
-                    display_tnode(else_node, indent + 4);
-                }
-            }
-            TNode::While { cond, body } => {
-                println!("{}while ({:?})", indentation, format_boolexpr(cond));
-                display_tnode(body, indent + 4);
-            }
-            TNode::Halt => {
-                println!("{}halt;", indentation);
-            }
-            TNode::Assert { cond } => {
-                println!("{}assert({:?});", indentation, format_boolexpr(cond));
-            }
-            TNode::Print { vars } => {
-                let var_names = 
-                    vars
-                    .iter()
-                    .map(|var| var.get_name())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                println!("{}print({:?});", indentation, var_names);
-            }
-        }
-    }
-
     for node in program {
         display_tnode(&node, 0);
     }

@@ -1,16 +1,20 @@
+/*
+ * author : Narcisse.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 /// General trait for an abstract domain.
 /// You need to precise top, bottom, and basic operators
 /// in order for the interpreter to manipulate it.
+use crate::ast::*;
+use crate::symbol::*;
+
 pub trait AbstractDomain : Clone + Eq {
     /// empty set
     fn bottom() -> Self;
-    /// full set
-    fn top() -> Self;
 
     /// wether an element represents the empty set
     fn is_bottom(&self) -> bool;
-    /// wether an element represents the full set
-    fn is_top(&self) -> bool;
     /// wether an abstract element is included in another
     fn subset(&self, rhs : &Self) -> bool;
 
@@ -46,4 +50,16 @@ pub trait AbstractDomain : Clone + Eq {
     fn widen_with(&mut self, rhs : Self);
     /// helper function for the narrowing operator
     fn narrow_with(&mut self, rhs : Self);
+
+    /// helper function to compare expressions inside a domain
+    fn compare(&mut self, e1 : IntExpr, cmp : CompareOp, e2 : IntExpr) -> Self;
+    /// helper function to represent the assignment
+    fn assign(&mut self, v : Symbol, e : IntExpr) -> Self;
+    /// helper function to add variable from scope
+    fn add_variable(&mut self, v : Symbol) -> Self;
+    /// helper function to remove variable from scope
+    fn remove_variable(&mut self, v : Symbol) -> Self;
+
+    /// pretty printer
+    fn print(&mut self, symbol : Symbol) -> String;
 }

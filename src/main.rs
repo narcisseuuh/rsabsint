@@ -1,3 +1,8 @@
+/*
+ * author : Narcisse.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 //! # rsabsint
 //!
 //! Library made for static analysis by abstract interpretation of a small set of the C language.
