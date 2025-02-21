@@ -37,7 +37,8 @@ where K : Ord {
 
     fn map2<F : FnMut(&V, &V) -> V>(&mut self, other : &Self, f : F) -> ();
     fn iter2<F : FnMut(&K, &V, &V) -> ()>(&self, other : &Self, f : F) -> ();
-    fn fold2<F : FnMut(&K, &V, &V, &V) -> V>(&mut self, other : &Self, base : &V, f : F) -> V;
+    fn fold2<F : FnMut(&K, &V, &V, &V) -> V>
+        (&mut self, other : &Self, base : &V, f : F) -> V;
 
     fn min_binding(&self) -> Option<(&K, &V)>;
     fn max_binding(&self) -> Option<(&K, &V)>;
@@ -116,7 +117,7 @@ where D : AbstractDomain {
         let hl = self.height;
         let hr = r.map(|x| x.height()).unwrap_or(0);
         let height =
-            if (hl >= hr) { hl + 1 } else { hr + 1 };
+            if hl >= hr { hl + 1 } else { hr + 1 };
         Node {
             key: key.clone(),
             value: value.clone(),
@@ -127,14 +128,88 @@ where D : AbstractDomain {
     }
 
     fn bal(&self, key : &Symbol, value : &D, r : Option<&Self>) -> Result<Self, MapError> {
-        todo!()
+        let hl = self.height;
+        let hr = r.map(|x| x.height()).unwrap_or(0);
+
+        if hl > hr + 2 {
+            match &self.left {
+                None => Err(MapError {}),
+                Some(lhs) => {
+                    if lhs.height() >= lhs.right.as_ref().map_or(0, |x| x.height()) {
+                        Ok(lhs.create(
+                            &lhs.key,
+                            &lhs.value,
+                            Some(&self.create(key, value, r))
+                        ))
+                    } else {
+                        match &lhs.right {
+                            None => Err(MapError {}),
+                            Some(lr) => {
+                                Ok(lhs.create(
+                                    &lhs.key,
+                                    &lhs.value,
+                                    Some(&lr.create(&lr.key,
+                                        &lr.value,
+                                        Some(&self.create(key, value, r)))
+                                    )
+                                ))
+                            }
+                        }
+                    }
+                }
+            }
+        } else if hr > hl + 2 {
+            match r {
+                None => Err(MapError {}),
+                Some(rhs) => {
+                    if rhs.height() >= rhs.left.as_ref().map_or(0, |x| x.height()) {
+                        Ok(self.create(
+                            key,
+                            value,
+                            Some(&rhs.create(
+                                &rhs.key,
+                                &rhs.value,
+                                rhs.right.as_deref()
+                            ))
+                        ))
+                    } else {
+                        match &rhs.left {
+                            None => return Err(MapError {}),
+                            Some(rl) => {
+                                Ok(self.create(
+                                    key,
+                                    value,
+                                    Some(&rl.create(
+                                        &rl.key,
+                                        &rl.value,
+                                        Some(&rhs.create(
+                                            &rhs.key,
+                                            &rhs.value,
+                                            rhs.right.as_deref()
+                                        ))
+                                    ))
+                                ))
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            Ok(Node {
+                key: key.clone(),
+                value: value.clone(),
+                left: Some(Rc::new(self.clone())),
+                right: r.map(|node| Rc::new(node.clone())),
+                height: if hl >= hr { hl + 1 } else { hr + 1 },
+            })
+        }
     }
 
     fn merge(&self, other : Option<&Self>) -> Result<Self, MapError> {
         match other {
             Some(n) => {
                 let (s, d) = n.min_binding();
-                self.bal(s, d, Some(&n.remove_min_binding()))
+                self.bal(s, d, n.remove_min_binding().as_ref())
             },
             None => Ok(self.clone()),
         }
@@ -331,8 +406,15 @@ where D : AbstractDomain {
         }
     }
 
-    fn remove_min_binding(&self) -> Self {
-        todo!()
+    fn remove_min_binding(&self) -> Option<Self> {
+        match (&self.left, &self.right) {
+            (None, None) => None,
+            (None, Some(n)) => Some((**n).clone()),
+            (Some(n), _) => {
+                let lhs = n.remove_min_binding()?;
+                Some(lhs.bal(&self.key, &self.value, self.right.as_deref()).unwrap())
+            },
+        }
     }
 
     fn max_binding(&self) -> (&Symbol, &D) {
@@ -352,7 +434,8 @@ where D : AbstractDomain {
         todo!()
     }
 
-    fn fold2<F : FnMut(&Symbol, &D, &D, &D) -> D>(&self, other : &Self, base : &D, f : F) -> &D {
+    fn fold2<F : FnMut(&Symbol, &D, &D, &D) -> D>
+    (&self, other : &Self, base : &D, f : F) -> &D {
         todo!()
     }
 }
@@ -492,11 +575,20 @@ where D : AbstractDomain {
         }
     }
     
-    fn fold2<F : FnMut(&Symbol, &D, &D, &D) -> D>(&mut self, other : &Self, base : &D, mut f : F) -> D {
+    fn fold2<F : FnMut(&Symbol, &D, &D, &D) -> D>
+    (&mut self, other : &Self, base : &D, mut f : F) -> D {
         match (&self.root, &other.root) {
             (None, None) => base.clone(),
-            (None, Some(n)) => n.fold(base, |x, d, acc| { f(x, &D::bottom(), d, acc) }),
-            (Some(n), None) => n.fold(base, |x, d, acc| { f(x, d, &D::bottom(), acc) }),
+            (None, Some(n)) =>
+                n.fold(
+                    base, 
+                    |x, d, acc| { f(x, &D::bottom(), d, acc) }
+                ),
+            (Some(n), None) =>
+                n.fold(
+                    base, 
+                    |x, d, acc| { f(x, d, &D::bottom(), acc) }
+                ),
             (Some(n1), Some(n2)) =>
                 n1.fold2(n2, base, f).clone(),
         }
