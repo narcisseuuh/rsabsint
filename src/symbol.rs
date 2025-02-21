@@ -68,6 +68,54 @@ impl Symbol {
     }
 }
 
+impl PartialOrd for Symbol {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Symbol {
+    // we compare symbols per lexical order
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self {
+            Symbol::Variable { name : n1, dtype : _ } => {
+                match other {
+                    Symbol::Variable { name : n2, dtype : _ }
+                        => n1.cmp(n2)
+                }
+            },
+        }
+    }
+    
+    fn max(self, other: Self) -> Self
+    where
+        Self: Sized,
+    {
+        std::cmp::max_by(self, other, Ord::cmp)
+    }
+    
+    fn min(self, other: Self) -> Self
+    where
+        Self: Sized,
+    {
+        std::cmp::min_by(self, other, Ord::cmp)
+    }
+    
+    fn clamp(self, min: Self, max: Self) -> Self
+    where
+        Self: Sized,
+    {
+        assert!(min <= max);
+        if self < min {
+            min
+        } else if self > max {
+            max
+        } else {
+            self
+        }
+    }
+}
+
 /// Structure to build Symbols.
 #[derive(Clone)]
 pub struct SymbolBuilder {

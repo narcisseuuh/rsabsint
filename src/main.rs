@@ -87,6 +87,6 @@ fn main() {
     }
     else {
         help(binary_path);
-        panic!("1 [file.c] should be precised.");
+        panic!("1 [file].c should be precised.");
     }
 }

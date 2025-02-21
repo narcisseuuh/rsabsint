@@ -53,13 +53,13 @@ pub trait AbstractDomain : Clone + Eq {
     fn narrow_with(&mut self, rhs : Self);
 
     /// helper function to compare expressions inside a domain
-    fn compare(&mut self, e1 : IntExpr, cmp : CompareOp, e2 : IntExpr) -> Self;
+    fn compare(&mut self, e1 : &IntExpr, cmp : &CompareOp, e2 : &IntExpr) -> Self;
     /// helper function to represent the assignment
-    fn assign(&mut self, v : Symbol, e : IntExpr) -> Result<Self, AnalysisError>;
+    fn assign(&mut self, v : &Symbol, e : &IntExpr) -> Result<Self, AnalysisError>;
     /// helper function to add variable from scope
-    fn add_variable(&mut self, v : Symbol) -> Self;
+    fn add_variable(&mut self, v : &Symbol) -> Self;
     /// helper function to remove variable from scope
-    fn remove_variable(&mut self, v : Symbol) -> Self;
+    fn remove_variable(&mut self, v : &Symbol) -> Self;
 
     /// pretty printer
     fn print(&mut self, symbol : Symbol) -> String;

@@ -53,29 +53,30 @@ impl AnalysisResults {
 }
 
 /// function implementing a basic widening to attain a fixpoint.
-fn fixpoint<D : AbstractDomain, T : FnMut(D, BoolExpr) -> Result<D, AnalysisError>>
-(mut f : T, x : &D, cond : BoolExpr) -> Result<D, AnalysisError> {
-    let fx = f(x.clone(), cond.clone())?;
+fn fixpoint<D : AbstractDomain, T : FnMut(&mut D, &BoolExpr) -> Result<D, AnalysisError>>
+(mut f : T, x : &mut D, cond : &BoolExpr) -> Result<D, AnalysisError> {
+    let fx = f(x, cond)?;
     if fx.subset(&x) {
         Ok(fx)
     }
     else {
-        fixpoint(f, &fx.join(x.clone()), cond)
+        fixpoint(f, &mut fx.join(x.clone()), cond)
     }
 }
 
 /// helper function to interpret boolean expressions and prune the parts of the domain
 /// that are not satisfying the condition.
-fn eval_boolexpr<D : AbstractDomain>(mut ctx : D, be : BoolExpr, should_satisfy : bool) -> D {
+fn eval_boolexpr<D : AbstractDomain>(ctx : &mut D, be : &BoolExpr, should_satisfy : bool) -> D {
     match be {
         BoolExpr::Unary { span : _, op, exp } => {
             match op {
-                BoolUnaryOp::Not => eval_boolexpr(ctx.clone(), *exp, !should_satisfy)
+                BoolUnaryOp::Not =>
+                    eval_boolexpr(ctx, exp, !should_satisfy)
             }
         },
         BoolExpr::Binary { span : _, op, lhs, rhs } => {
-            let eval_lhs = eval_boolexpr(ctx.clone(), *lhs, should_satisfy);
-            let eval_rhs = eval_boolexpr(ctx.clone(), *rhs, should_satisfy);
+            let eval_lhs = eval_boolexpr(ctx, lhs, should_satisfy);
+            let eval_rhs = eval_boolexpr(ctx, rhs, should_satisfy);
             match op {
                 BoolBinaryOp::And => eval_lhs.meet(eval_rhs),
                 BoolBinaryOp::Or => eval_lhs.join(eval_rhs),
@@ -85,8 +86,8 @@ fn eval_boolexpr<D : AbstractDomain>(mut ctx : D, be : BoolExpr, should_satisfy 
             ctx.compare(lhs, op, rhs)
         },
         BoolExpr::Const { span : _, cst } => {
-            if cst && should_satisfy {
-                ctx
+            if *cst && should_satisfy {
+                ctx.clone()
             }
             else {
                 D::bottom()
@@ -122,10 +123,10 @@ where D : AbstractDomain {
     }
 
     /// function to evaluate a statement according to a context `ctx`.
-    fn eval_stmt(&mut self, stmt : TNode, ctx : D) -> Result<D, AnalysisError> {
+    fn eval_stmt(&mut self, stmt : &TNode, ctx : &mut D) -> Result<D, AnalysisError> {
         match stmt {
             TNode::Assert { cond } => {
-                let res = eval_boolexpr(ctx.clone(), cond, true);
+                let res = eval_boolexpr(ctx, &cond, true);
                 if res.is_bottom() {
                     Err(AnalysisError::FailedAssert)
                 }
@@ -134,27 +135,30 @@ where D : AbstractDomain {
                 }
             },
             TNode::Assign { lhs, rhs } => {
-                self.base.assign(lhs, rhs)
+                ctx.assign(&lhs, rhs)
             },  
             TNode::Block { decl, stmt } => {
-                // todo : modify to take into account the scope
-                let mut new_ctx = ctx;
+                let new_ctx = ctx;
                 let _ = decl
                     .iter()
-                    .map(|x| new_ctx.add_variable(x.clone()));
-                self.eval_stmt_list(stmt, new_ctx)
+                    .map(|x| new_ctx.add_variable(x));
+                /* we create a new context holding the new scope
+                so that when we leave this block, we will keep our old context */
+                self.eval_stmt_list(&stmt, new_ctx)
             },
             TNode::Halt => {
                 // todo : potentially warn dead code after halt
                 Ok(ctx.clone())
             },
             TNode::If { cond, then, otherwise } => {
-                let then_domain = eval_boolexpr(ctx.clone(), cond.clone(), true);
+                let mut then_domain =
+                    eval_boolexpr(ctx, &cond, true);
                 if let Some(otherwise) = otherwise {
-                    let else_domain = eval_boolexpr(ctx.clone(), cond.clone(), false);
+                    let mut else_domain =
+                        eval_boolexpr(ctx, &cond, false);
                     Ok(D::join(
-                        self.eval_stmt(*then, then_domain)?,
-                        self.eval_stmt(*otherwise, else_domain)?
+                        self.eval_stmt(then, &mut then_domain)?,
+                        self.eval_stmt(otherwise, &mut else_domain)?
                     ))
                 }
                 else {
@@ -166,7 +170,7 @@ where D : AbstractDomain {
                 let fmt = vars
                     .iter()
                     .map(|x| -> String { 
-                        format!("{} : {}", x.get_name(), self.base.print(x.clone()))
+                        format!("{} : {}", x.get_name(), ctx.print(x.clone()))
                     })
                     .fold(String::from(""),
                         |acc, x| -> String { format!("{}, {}", acc, x) });
@@ -174,21 +178,24 @@ where D : AbstractDomain {
                 Ok(ctx.clone())
             },
             TNode::While { cond, body } => {
-                let mut in_loop = eval_boolexpr(ctx.clone(),cond.clone(), true);
+                let mut in_loop =
+                    eval_boolexpr(ctx,&cond, true);
                 for _ in 1..self.unroll {
                     in_loop = D::join(
                         in_loop.clone(),
-                        self.eval_stmt(*body.clone(), in_loop)?
+                        self.eval_stmt(body, &mut in_loop)?
                     );
                 }
                 in_loop = fixpoint(
                     |x, cond| -> Result<D, AnalysisError> {
-                        let filtered_comp = eval_boolexpr(x.clone(), cond, true);
-                        let result = self.eval_stmt(*body.clone(), filtered_comp)?;
-                        Ok(D::join(x, result))
+                        let mut filtered_comp =
+                            eval_boolexpr(x, cond, true);
+                        let result =
+                            self.eval_stmt(body, &mut filtered_comp)?;
+                        Ok(D::widen(x.clone(), result))
                     },
-                    &in_loop.clone(),
-                    cond
+                    &mut in_loop,
+                    &cond
                 )?;
                 Ok(in_loop)
             },
@@ -197,12 +204,12 @@ where D : AbstractDomain {
 
     /// helper function for the evaluation of a statement vector.
     /// It basically is a fold using `eval_stmt`.
-    fn eval_stmt_list(&mut self, stmt_list : Vec<TNode>, ctx : D) -> Result<D, AnalysisError> {
-        self.base = ctx;
+    fn eval_stmt_list(&mut self, stmt_list : &Vec<TNode>, ctx : &mut D) -> Result<D, AnalysisError> {
+        self.base = ctx.clone();
         for stmt in stmt_list {
             self.base = D::join(
                 self.base.clone(),
-                self.eval_stmt(stmt.clone(), self.base.clone())?
+                self.eval_stmt(stmt, &mut self.base.clone())?
             );
         }
         Ok(self.base.clone())
@@ -212,7 +219,8 @@ where D : AbstractDomain {
     pub fn eval_prog(&mut self) -> Result<(), AnalysisError> {
         let mut res : Vec<AnalysisResults> = Vec::new();
         for stmt in self.next_nodes.clone() {
-            let curr_res = self.eval_stmt(stmt.clone(), D::bottom());
+            let curr_res =
+                self.eval_stmt(&stmt, &mut self.base.clone());
             if let Err(e) = curr_res {
                 res.push(AnalysisResults::new(
                     e.to_string(),
