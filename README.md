@@ -40,7 +40,7 @@ au sein du conteneur est copiée la batterie de tests.
 - [ ] domaine concret (option `-concrete`).
 - [ ] domaine des constantes (option `-constant`).
 - [ ] domaine des intervalles (option `-interval`).
-- [ ] analyse de boucles.
+- [x] analyse de boucles.
 - [ ] analyse des entiers machine.
 - [ ] analyse disjonctive (option `-disjonctive`).
 - [ ] analyse relationnelle et bindings Apron.

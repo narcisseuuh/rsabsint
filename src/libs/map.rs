@@ -3,7 +3,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-use crate::{domains::domain::AbstractDomain, symbol::Symbol};
+use crate::symbol::Symbol;
 use std::{error::Error, fmt, rc::Rc};
 
 #[derive(Debug)]
@@ -54,7 +54,7 @@ where K : Ord {
 }
 
 #[derive(Clone)]
-struct Node<D : AbstractDomain> {
+struct Node<D> {
     key : Symbol,
     value : D,
     left : Option<Rc<Node<D>>>,
@@ -63,7 +63,7 @@ struct Node<D : AbstractDomain> {
 }
 
 impl<D> Node<D>
-where D : AbstractDomain {
+where D : Clone + Eq {
     fn new(key : &Symbol, value : &D) -> Self {
         Node {
             key: key.clone(),
@@ -321,8 +321,12 @@ where D : AbstractDomain {
 
     fn iter<F : FnMut(&Symbol, &D) -> ()>(&self, mut f : F) -> () {
         f(&self.key, &self.value);
-        self.left.as_ref().map(|x| x.iter(&mut f));
-        self.right.as_ref().map(|x| x.iter(&mut f));
+        if let Some(lhs) = &self.left {
+            lhs.iter(&mut f);
+        }
+        if let Some(rhs) = &self.right {
+            rhs.iter(&mut f);
+        }
     }
 
     fn fold<F : FnMut(&Symbol, &D, &D) -> D>(&self, base : &D, mut f : F) -> D {
@@ -588,18 +592,18 @@ where D : AbstractDomain {
     }
 }
 
-pub struct Map<D : AbstractDomain> {
+pub struct Map<D> {
     root : Option<Rc<Node<D>>>,
 }
 
-impl<D : AbstractDomain> Map<D> {
+impl<D> Map<D> {
     fn get_root(&self) -> Option<Rc<Node<D>>> {
         self.root.clone()
     }
 }
 
-impl<D> MapTrait<Symbol, D> for Map<D> 
-where D : AbstractDomain {
+impl<D> MapTrait<Symbol, D> for Map<D>
+where D : Clone + Eq {
     fn new() -> Self {
         Map {
             root : None,
@@ -780,5 +784,243 @@ where D : AbstractDomain {
                 Ok(n1.for_all2z(Some(n2), &mut f)?)
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::typing::Type;
+
+    impl Symbol {
+        pub fn new(name : &str) -> Self {
+            Self::Variable { name: name.to_string(), dtype: Type::Int }
+        }
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct TestDomain(i32);
+
+    #[test]
+    fn test_new() {
+        let map: Map<TestDomain> = Map::new();
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn test_singleton() {
+        let key = Symbol::new("key");
+        let value = TestDomain(42);
+        let map = Map::singleton(&key, &value);
+        assert!(!map.is_empty());
+        assert!(map.mem(&key));
+        assert_eq!(map.find(&key), Some(&value));
+    }
+
+    #[test]
+    fn test_add() {
+        let key1 = Symbol::new("key1");
+        let value1 = TestDomain(42);
+        let key2 = Symbol::new("key2");
+        let value2 = TestDomain(43);
+        let mut map = Map::new();
+        map.add(&key1, &value1).unwrap();
+        map.add(&key2, &value2).unwrap();
+        assert!(map.mem(&key1));
+        assert!(map.mem(&key2));
+        assert_eq!(map.find(&key1), Some(&value1));
+        assert_eq!(map.find(&key2), Some(&value2));
+    }
+
+    #[test]
+    fn test_remove() {
+        let key = Symbol::new("key");
+        let value = TestDomain(42);
+        let mut map = Map::singleton(&key, &value);
+        map.remove(&key);
+        assert!(map.is_empty());
+    }
+
+    #[test]
+    fn test_iter() {
+        let key1 = Symbol::new("key1");
+        let key2 = Symbol::new("key2");
+        let value1 = TestDomain(42);
+        let value2 = TestDomain(43);
+        let mut map = Map::new();
+        map.add(&key1, &value1).unwrap();
+        map.add(&key2, &value2).unwrap();
+        let mut keys = Vec::new();
+        let mut values = Vec::new();
+        map.iter(|k, v| {
+            keys.push(k.clone());
+            values.push(v.clone());
+        });
+        assert_eq!(keys, vec![key1.clone(), key2.clone()]);
+        assert_eq!(values, vec![value1.clone(), value2.clone()]);
+    }
+
+    #[test]
+    fn test_fold() {
+        let key1 = Symbol::new("key1");
+        let value1 = TestDomain(42);
+        let key2 = Symbol::new("key2");
+        let value2 = TestDomain(43);
+        let mut map = Map::new();
+        map.add(&key1, &value1).unwrap();
+        map.add(&key2, &value2).unwrap();
+        let result = map.fold(&TestDomain(0), |_, v, acc| TestDomain(v.0 + acc.0));
+        assert_eq!(result, TestDomain(85));
+    }
+
+    #[test]
+    fn test_filter() {
+        let key1 = Symbol::new("key1");
+        let value1 = TestDomain(42);
+        let key2 = Symbol::new("key2");
+        let value2 = TestDomain(43);
+        let mut map = Map::new();
+        map.add(&key1, &value1).unwrap();
+        map.add(&key2, &value2).unwrap();
+        map.filter(|_, v| v.0 > 42);
+        assert!(map.mem(&key2));
+        assert!(!map.mem(&key1));
+    }
+
+    #[test]
+    fn test_map() {
+        let key1 = Symbol::new("key1");
+        let value1 = TestDomain(42);
+        let key2 = Symbol::new("key2");
+        let value2 = TestDomain(43);
+        let mut map = Map::new();
+        map.add(&key1, &value1).unwrap();
+        map.add(&key2, &value2).unwrap();
+        map.map(|v| TestDomain(v.0 + 1));
+        assert_eq!(map.find(&key1), Some(&TestDomain(43)));
+        assert_eq!(map.find(&key2), Some(&TestDomain(44)));
+    }
+
+    #[test]
+    fn test_mapi() {
+        let key1 = Symbol::new("key1");
+        let value1 = TestDomain(42);
+        let key2 = Symbol::new("key2");
+        let value2 = TestDomain(43);
+        let mut map = Map::new();
+        map.add(&key1, &value1).unwrap();
+        map.add(&key2, &value2).unwrap();
+        map.mapi(|_, v| TestDomain(v.0 + 1));
+        assert_eq!(map.find(&key1), Some(&TestDomain(43)));
+        assert_eq!(map.find(&key2), Some(&TestDomain(44)));
+    }
+
+    #[test]
+    fn test_min_binding() {
+        let key1 = Symbol::new("key1");
+        let value1 = TestDomain(42);
+        let key2 = Symbol::new("key2");
+        let value2 = TestDomain(43);
+        let mut map = Map::new();
+        map.add(&key1, &value1).unwrap();
+        map.add(&key2, &value2).unwrap();
+        let (min_key, min_value) = map.min_binding().unwrap();
+        assert_eq!(min_key, &key1);
+        assert_eq!(min_value, &value1);
+    }
+
+    #[test]
+    fn test_max_binding() {
+        let key1 = Symbol::new("key1");
+        let value1 = TestDomain(42);
+        let key2 = Symbol::new("key2");
+        let value2 = TestDomain(43);
+        let mut map = Map::new();
+        map.add(&key1, &value1).unwrap();
+        map.add(&key2, &value2).unwrap();
+        let (max_key, max_value) = map.max_binding().unwrap();
+        assert_eq!(max_key, &key2);
+        assert_eq!(max_value, &value2);
+    }
+
+    #[test]
+    fn test_for_all() {
+        let key1 = Symbol::new("key1");
+        let value1 = TestDomain(42);
+        let key2 = Symbol::new("key2");
+        let value2 = TestDomain(43);
+        let mut map = Map::new();
+        map.add(&key1, &value1).unwrap();
+        map.add(&key2, &value2).unwrap();
+        assert!(map.for_all(|_, v| v.0 > 40));
+        assert!(!map.for_all(|_, v| v.0 > 42));
+    }
+
+    #[test]
+    fn test_map2z() {
+        let key1 = Symbol::new("key1");
+        let value1 = TestDomain(42);
+        let key2 = Symbol::new("key2");
+        let value2 = TestDomain(43);
+        let mut map1 = Map::new();
+        map1.add(&key1, &value1).unwrap();
+        map1.add(&key2, &value2).unwrap();
+        let mut map2 = Map::new();
+        map2.add(&key1, &TestDomain(1)).unwrap();
+        map2.add(&key2, &TestDomain(2)).unwrap();
+        map1.map2z(&map2, |v1, v2| TestDomain(v1.0 + v2.0)).unwrap();
+        assert_eq!(map1.find(&key1), Some(&TestDomain(43)));
+        assert_eq!(map1.find(&key2), Some(&TestDomain(45)));
+    }
+
+    #[test]
+    fn test_iter2z() {
+        let key1 = Symbol::new("key1");
+        let value1 = TestDomain(42);
+        let key2 = Symbol::new("key2");
+        let value2 = TestDomain(43);
+        let mut map1 = Map::new();
+        map1.add(&key1, &value1).unwrap();
+        map1.add(&key2, &value2).unwrap();
+        let mut map2 = Map::new();
+        map2.add(&key1, &TestDomain(1)).unwrap();
+        map2.add(&key2, &TestDomain(2)).unwrap();
+        let mut results = Vec::new();
+        map1.iter2z(&map2, |k, v1, v2| {
+            results.push((k.clone(), v1.clone(), v2.clone()));
+        }).unwrap();
+        assert_eq!(results, vec![(key1.clone(), value1.clone(), TestDomain(1)), (key2.clone(), value2.clone(), TestDomain(2))]);
+    }
+
+    #[test]
+    fn test_fold2z() {
+        let key1 = Symbol::new("key1");
+        let value1 = TestDomain(42);
+        let key2 = Symbol::new("key2");
+        let value2 = TestDomain(43);
+        let mut map1 = Map::new();
+        map1.add(&key1, &value1).unwrap();
+        map1.add(&key2, &value2).unwrap();
+        let mut map2 = Map::new();
+        map2.add(&key1, &TestDomain(1)).unwrap();
+        map2.add(&key2, &TestDomain(2)).unwrap();
+        let result = map1.fold2z(&map2, &TestDomain(0), |_, v1, v2, acc| TestDomain(v1.0 + v2.0 + acc.0)).unwrap();
+        assert_eq!(result, TestDomain(88));
+    }
+
+    #[test]
+    fn test_for_all2z() {
+        let key1 = Symbol::new("key1");
+        let value1 = TestDomain(42);
+        let key2 = Symbol::new("key2");
+        let value2 = TestDomain(43);
+        let mut map1 = Map::new();
+        map1.add(&key1, &value1).unwrap();
+        map1.add(&key2, &value2).unwrap();
+        let mut map2 = Map::new();
+        map2.add(&key1, &TestDomain(1)).unwrap();
+        map2.add(&key2, &TestDomain(2)).unwrap();
+        assert!(map1.for_all2z(&map2, |_, v1, v2| v1.0 > v2.0).unwrap());
+        assert!(!map1.for_all2z(&map2, |_, v1, v2| v1.0 < v2.0).unwrap());
     }
 }

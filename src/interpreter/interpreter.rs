@@ -144,10 +144,9 @@ where D : AbstractDomain {
                     .map(|x| new_ctx.add_variable(x));
                 /* we create a new context holding the new scope
                 so that when we leave this block, we will keep our old context */
-                self.eval_stmt_list(&stmt, new_ctx)
+                self.eval_stmt_list(&mut stmt.clone(), new_ctx)
             },
             TNode::Halt => {
-                // todo : potentially warn dead code after halt
                 Ok(ctx.clone())
             },
             TNode::If { cond, then, otherwise } => {
@@ -204,13 +203,22 @@ where D : AbstractDomain {
 
     /// helper function for the evaluation of a statement vector.
     /// It basically is a fold using `eval_stmt`.
-    fn eval_stmt_list(&mut self, stmt_list : &Vec<TNode>, ctx : &mut D) -> Result<D, AnalysisError> {
+    fn eval_stmt_list(&mut self, stmt_list : &mut Vec<TNode>, ctx : &mut D) -> Result<D, AnalysisError> {
         self.base = ctx.clone();
-        for stmt in stmt_list {
+        while !stmt_list.is_empty() {
+            let stmt = &stmt_list.pop().unwrap();
+            match &stmt {
+                TNode::Halt => {
+                    if !stmt_list.is_empty() {
+                        return Err(AnalysisError::DeadCode);
+                    }
+                },
+                _ => (),
+            }
             self.base = D::join(
                 self.base.clone(),
                 self.eval_stmt(stmt, &mut self.base.clone())?
-            );
+            )
         }
         Ok(self.base.clone())
     }
