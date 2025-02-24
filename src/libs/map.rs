@@ -11,7 +11,7 @@ pub struct MapError {}
 
 impl fmt::Display for MapError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Should not happen..")
+        write!(f, "Map library misuse")
     }
 }
 
@@ -34,11 +34,20 @@ where K : Ord {
     fn fold<F : FnMut(&K, &V, &V) -> V>(&self, base : &V, f : F) -> V;
     fn filter<F : FnMut(&K, &V) -> bool>(&mut self, f : F) -> ();
     fn mapi<F : FnMut(&K, &V) -> V>(&mut self, f : F) -> ();
+    fn for_all<F : FnMut(&K, &V) -> bool>(&self, f : F) -> bool;
 
-    fn map2<F : FnMut(&V, &V) -> V>(&mut self, other : &Self, f : F) -> ();
-    fn iter2<F : FnMut(&K, &V, &V) -> ()>(&self, other : &Self, f : F) -> ();
-    fn fold2<F : FnMut(&K, &V, &V, &V) -> V>
-        (&mut self, other : &Self, base : &V, f : F) -> V;
+    fn map2z<F : FnMut(&V, &V) -> V>
+    (&mut self, other : &Self, f : F)
+        -> Result<(), MapError>;
+    fn iter2z<F : FnMut(&K, &V, &V) -> ()>
+    (&self, other : &Self, f : F)
+        -> Result<(), MapError>;
+    fn fold2z<F : FnMut(&K, &V, &V, &V) -> V>
+    (&mut self, other : &Self, base : &V, f : F)
+        -> Result<V, MapError>;
+    fn for_all2z<F : FnMut(&K, &V, &V) -> bool>
+    (&mut self, other : &Self, f : F)
+        -> Result<bool, MapError>;
 
     fn min_binding(&self) -> Option<(&K, &V)>;
     fn max_binding(&self) -> Option<(&K, &V)>;
@@ -397,6 +406,21 @@ where D : AbstractDomain {
         }
     }
 
+    fn for_all<F : FnMut(&Symbol, &D) -> bool>
+    (&self, mut f : F) -> bool {
+        f(&self.key, &self.value)
+        && if let Some(n) = &self.left {
+            n.for_all(&mut f)
+        } else {
+            true
+        }
+        && if let Some(n) = &self.right {
+            n.for_all(&mut f)
+        } else {
+            true
+        }
+    }
+
     fn min_binding(&self) -> (&Symbol, &D) {
         if let Some(n) = &self.left {
             n.min_binding()
@@ -425,18 +449,142 @@ where D : AbstractDomain {
             (&self.key, &self.value)
         }
     }
-
-    fn map2<F : FnMut(&D, &D) -> D>(&self, other : &Self, f : F) -> Self {
-        todo!()
+    
+    fn cut(&self, key : &Symbol)
+     -> Result<(Option<&Self>, Option<&D>, Option<&Self>), MapError> {
+        if self.key == *key {
+            Ok(
+                (self.left.as_deref(),
+                Some(&self.value),
+                self.right.as_deref())
+            )
+        }
+        else if self.key > *key {
+            match &self.left {
+                None => Ok((None, None, self.right.as_deref())),
+                Some(n) => n.cut(key),
+            }
+        }
+        else if self.key < *key {
+            match &self.right {
+                None => Ok((self.left.as_deref(), None, None)),
+                Some(n) => n.cut(key),
+            }
+        }
+        else {
+            Err(MapError {})
+        }
     }
 
-    fn iter2<F : FnMut(&Symbol, &D, &D) -> ()>(&self, other : &Self, f : F) -> () {
-        todo!()
+    fn map2z<F : FnMut(&D, &D) -> D>
+    (&self, other : Option<&Self>, mut f : F) -> Result<Self, MapError> {
+        if let Some(other) = other {
+            let (lhs, val, rhs) =
+                other.cut(&self.key.clone())?;
+            if let Some(val) = val {
+                Ok(Node {
+                    key: self.key.clone(),
+                    value: f(&self.value, val),
+                    left: self.left
+                        .as_ref()
+                        .map(|x| x.map2z(lhs, &mut f).unwrap().into()),
+                    right: self.right
+                        .as_ref()
+                        .map(|x| x.map2z(rhs, &mut f).unwrap().into()),
+                    height: self.height,
+                })
+            }
+            else {
+                Err(MapError {})
+            }
+        }
+        else {
+            Err(MapError {})
+        }
     }
 
-    fn fold2<F : FnMut(&Symbol, &D, &D, &D) -> D>
-    (&self, other : &Self, base : &D, f : F) -> &D {
-        todo!()
+    fn iter2z<F : FnMut(&Symbol, &D, &D) -> ()>
+    (&self, other : Option<&Self>, mut f : F) -> Result<(), MapError> {
+        if let Some(other) = other {
+            let (lhs, val, rhs) =
+                other.cut(&self.key.clone())?;
+            if let Some(val) = val {
+                self.left
+                    .as_ref()
+                    .map(|x| x.iter2z(lhs, &mut f));
+                if self.value != *val {
+                    f(&self.key, &self.value, val);
+                }
+                self.right
+                    .as_ref()
+                    .map(|x| x.iter2z(rhs, &mut f));
+                Ok(())
+            }
+            else {
+                Err(MapError {})
+            }
+        }
+        else {
+            Err(MapError {})
+        }
+    }
+
+    fn fold2z<F : FnMut(&Symbol, &D, &D, &D) -> D>
+    (&self, other : Option<&Self>, base : &D, f : &mut F) -> Result<&D, MapError> {
+        if let Some(other) = other {
+            let (lhs, val, rhs) =
+                other.cut(&self.key.clone())?;
+            if let Some(val) = val {
+                let acc =
+                    self.left
+                    .as_ref()
+                    .map(|x| x.fold2z(lhs, base, f))
+                    .unwrap();
+                let acc = if self.value == *val {
+                    acc?
+                }
+                else {
+                    &f(&self.key, &self.value, val, acc?)
+                };
+                self.right
+                    .as_ref()
+                    .map(|x|  x.fold2z(rhs, acc, f))
+                    .unwrap_or(Err(MapError {}))
+            }
+            else {
+                Err(MapError {})
+            }
+        }
+        else {
+            Err(MapError {})
+        }
+    }
+
+    fn for_all2z<F : FnMut(&Symbol, &D, &D) -> bool>
+    (&self, other : Option<&Self>, f : &mut F) -> Result<bool, MapError> {
+        if let Some(other) = other {
+            let (lhs, val, rhs) =
+                other.cut(&self.key.clone())?;
+            if let Some(val) = val {
+                Ok(
+                    self.left
+                        .as_ref()
+                        .map(|x| x.for_all2z(lhs, f).unwrap())
+                        .unwrap_or(true)
+                    && (self.value == *val || f(&self.key, &self.value, val))
+                    && self.left
+                    .as_ref()
+                    .map(|x| x.for_all2z(rhs, f).unwrap())
+                    .unwrap_or(true)
+                )
+            }
+            else {
+                Err(MapError {})
+            }
+        }
+        else {
+            Err(MapError {})
+        }
     }
 }
 
@@ -551,46 +699,46 @@ where D : AbstractDomain {
         }
     }
     
-    fn map2<F : FnMut(&D, &D) -> D>(&mut self, other : &Self, mut f : F) -> () {
+    fn map2z<F : FnMut(&D, &D) -> D>
+    (&mut self, other : &Self, mut f : F) -> Result<(), MapError> {
         match (&self.root, &other.root) {
-            (None, None) => (),
-            (None, Some(node)) =>
-                self.root = Some(node.map(|x| { f(x, &D::bottom()) }).into()),
-            (Some(node), None) =>
-                self.root = Some(node.map(|x| { f(x, &D::bottom()) }).into()),
-            (Some(n1), Some(n2)) =>
-                self.root = Some(n1.map2(n2, f).into()),
+            (None, None) => Ok(()),
+            (None, Some(_)) =>
+                Err(MapError {}),
+            (Some(_), None) =>
+                Err(MapError {}),
+            (Some(n1), Some(n2)) => {
+                self.root = Some(n1.map2z(Some(n2), &mut f)?.into());
+                Ok(())
+            },
         }
     }
     
-    fn iter2<F : FnMut(&Symbol, &D, &D) -> ()>(&self, other : &Self, mut f : F) -> () {
+    fn iter2z<F : FnMut(&Symbol, &D, &D) -> ()>
+    (&self, other : &Self, mut f : F) -> Result<(), MapError> {
         match (&self.root, &other.root) {
-            (None, None) => (),
-            (None, Some(node)) =>
-                node.iter(|x, d| { f(x, &D::bottom(), d) }),
-            (Some(node), None) =>
-                node.iter(|x, d| { f(x, d, &D::bottom()) }),
-            (Some(n1), Some(n2)) =>
-                n1.iter2(n2, f),
+            (None, None) => Ok(()),
+            (None, Some(_)) =>
+                Err(MapError {}),
+            (Some(_), None) =>
+                Err(MapError {}),
+            (Some(n1), Some(n2)) => {
+                n1.iter2z(Some(n2), &mut f)?;
+                Ok(())
+            },
         }
     }
     
-    fn fold2<F : FnMut(&Symbol, &D, &D, &D) -> D>
-    (&mut self, other : &Self, base : &D, mut f : F) -> D {
+    fn fold2z<F : FnMut(&Symbol, &D, &D, &D) -> D>
+    (&mut self, other : &Self, base : &D, mut f : F) -> Result<D, MapError> {
         match (&self.root, &other.root) {
-            (None, None) => base.clone(),
-            (None, Some(n)) =>
-                n.fold(
-                    base, 
-                    |x, d, acc| { f(x, &D::bottom(), d, acc) }
-                ),
-            (Some(n), None) =>
-                n.fold(
-                    base, 
-                    |x, d, acc| { f(x, d, &D::bottom(), acc) }
-                ),
+            (None, None) => Ok(base.clone()),
+            (None, Some(_)) =>
+                Err(MapError {}),
+            (Some(_), None) =>
+                Err(MapError {}),
             (Some(n1), Some(n2)) =>
-                n1.fold2(n2, base, f).clone(),
+                Ok(n1.fold2z(Some(n2), base, &mut f)?.clone()),
         }
     }
     
@@ -612,6 +760,25 @@ where D : AbstractDomain {
         match &self.root {
             None => true,
             _ => false,
+        }
+    }
+    
+    fn for_all<F : FnMut(&Symbol, &D) -> bool>(&self, mut f : F) -> bool {
+        match &self.root {
+            None => true,
+            Some(n) => n.for_all(&mut f),
+        }
+    }
+    
+    fn for_all2z<F : FnMut(&Symbol, &D, &D) -> bool>
+    (&mut self, other : &Self, mut f : F) -> Result<bool, MapError> {
+        match (&self.root, &other.root) {
+            (None, None) => Ok(true),
+            (None, Some(_)) => Err(MapError {}),
+            (Some(_), None) => Err(MapError {}),
+            (Some(n1), Some(n2)) => {
+                Ok(n1.for_all2z(Some(n2), &mut f)?)
+            },
         }
     }
 }
